@@ -515,7 +515,7 @@ export default function CabsPage() {
                         <span className="text-2xl font-bold">${car.price}</span>
                         <span className="text-gray-600 text-sm">/ day</span>
                       </div>
-                      <Button onClick={() => openBookingModal(car)}>Book Now</Button>
+                      {/* <Button onClick={() => openBookingModal(car)}>Book Now</Button> */}
                     </div>
                   </div>
                 </Card>

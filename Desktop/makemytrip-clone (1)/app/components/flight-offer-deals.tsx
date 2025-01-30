@@ -160,9 +160,9 @@ export function FlightOfferDeals() {
                       <span className="text-sm text-gray-500">{deal.seatsLeft} Seats left</span>
                       <div className="text-2xl font-bold">${deal.price}</div>
                     </div>
-                    <Button variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-600">
+                    {/* <Button variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-600">
                       Book Now
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               </Card>

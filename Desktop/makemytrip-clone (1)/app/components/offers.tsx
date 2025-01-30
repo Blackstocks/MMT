@@ -148,9 +148,9 @@ export function Offers() {
                           {offer.description}
                         </p>
                       </div>
-                      <div className="flex justify-end mt-2 sm:mt-0">
+                      {/* <div className="flex justify-end mt-2 sm:mt-0">
                         <Button className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm py-1">BOOK NOW</Button>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
                 </Card>
@@ -184,9 +184,9 @@ export function Offers() {
                           {offer.description}
                         </p>
                       </div>
-                      <div className="flex justify-end mt-2 sm:mt-0">
+                      {/* <div className="flex justify-end mt-2 sm:mt-0">
                         <Button className="bg-red-600 hover:bg-red-700 text-xs sm:text-sm py-1">BOOK NOW</Button>
-                      </div>
+                      </div> */}
                     </div>
                   </div>
                 </Card>

@@ -106,9 +106,9 @@ export function TopRatedHotels() {
                   <span className="text-2xl font-bold">${hotel.price}</span>
                   <span className="text-gray-600 ml-1">/ person</span>
                 </div>
-                <Button variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-600">
+                {/* <Button variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-600">
                   Book Now
-                </Button>
+                </Button> */}
               </div>
             </div>
           </Card>

@@ -122,7 +122,7 @@ export function FeaturedTours() {
                   <span className="text-gray-600 ml-1">/ person</span>
                 </div>
                 <Button variant="outline" className="hover:bg-red-50 hover:text-red-600 hover:border-red-600">
-                  Book Now
+                  Book No
                 </Button>
               </div>
             </div>

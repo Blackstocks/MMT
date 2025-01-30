@@ -1,184 +1,435 @@
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { ChevronLeft, ChevronRight, Clock, Plane, Users } from "lucide-react"
-import Image from "next/image"
-import { cn } from "@/lib/utils"
-import { useRouter } from "next/navigation"
+"use client";
 
-// Dummy data for flights
-const dummyFlights = Array(25)
-  .fill(null)
-  .map((_, index) => ({
-    id: index + 1,
-    airline: ["IndiGo", "Air India", "SpiceJet", "Vistara", "GoAir"][Math.floor(Math.random() * 5)],
-    flightNumber: `${["6E", "AI", "SG", "UK", "G8"][Math.floor(Math.random() * 5)]} ${1000 + index}`,
-    departureTime: `${String(Math.floor(Math.random() * 24)).padStart(2, "0")}:${String(Math.floor(Math.random() * 60)).padStart(2, "0")}`,
-    arrivalTime: `${String(Math.floor(Math.random() * 24)).padStart(2, "0")}:${String(Math.floor(Math.random() * 60)).padStart(2, "0")}`,
-    duration: `${Math.floor(Math.random() * 5) + 1}h ${Math.floor(Math.random() * 60)}m`,
-    price: Math.floor(Math.random() * 10000) + 2000,
-    type: Math.random() > 0.3 ? "Non stop" : "1 stop",
-    onTime: `${90 + Math.floor(Math.random() * 10)}%`,
-    meal: Math.random() > 0.5,
-    logo: "/placeholder.svg",
-    seats: Math.floor(Math.random() * 30) + 1,
-    baggage: "15 kg",
-    handBaggage: "7 kg",
-    cancellationFee: `₹ ${3000 + Math.floor(Math.random() * 1500)}`,
-    offers: [
-      "Use code MMTSUPER for extra ₹ 200 off",
-      "Get up to ₹ 500 cashback with MakeMyTrip wallet",
-      "Get up to ₹ 1000 off with HDFC Bank credit card",
-    ].slice(0, Math.floor(Math.random() * 3) + 1),
-  }))
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Plane, Clock, AlertCircle } from "lucide-react";
+import type { Flight, FlightFilters, FlightSearchResponse } from "@/types/flight";
+import { format } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useRouter } from 'next/navigation';
 
-export default function FlightResults({ selectedFrom, selectedTo, dates, filters, setFilters }) {
-  const router = useRouter()
-  // Use the dummy data instead of filteredFlights
-  const filteredFlights = dummyFlights
+interface FlightResultsProps {
+  selectedFrom: string;
+  selectedTo: string;
+  dates: Array<{ date: string; price: string; active: boolean }>;
+  filters: FlightFilters;
+  setFilters: (filters: FlightFilters) => void;
+  onErrorChange?: (error: string | null) => void;
+}
+
+const formatDuration = (minutes: number): string => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+};
+
+const getTimeOfDay = (dateString: string): string => {
+  const hour = new Date(dateString).getHours();
+  if (hour >= 6 && hour < 12) return "morning";
+  if (hour >= 12 && hour < 18) return "afternoon";
+  if (hour >= 18 && hour < 24) return "evening";
+  return "night";
+};
+
+export default function FlightResults({
+  selectedFrom,
+  selectedTo,
+  dates,
+  filters,
+  setFilters,
+  onErrorChange,
+}: FlightResultsProps) {
+  const [flights, setFlights] = useState<Flight[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Handle booking function at component scope
+  const handleBookNow = (flight: Flight) => {
+    try {
+      // Store all necessary details
+      localStorage.setItem("selectedFlight", JSON.stringify(flight));
+      localStorage.setItem(
+        "bookingDetails",
+        JSON.stringify({
+          from: selectedFrom,
+          to: selectedTo,
+          travellerCount: 1, // Update based on your requirements
+          class: flight.Segments[0][0].CabinClass,
+        })
+      );
+
+      // Navigate to booking page
+      router.push("/flight-booking");
+    } catch (error) {
+      console.error("Error handling booking:", error);
+      if (onErrorChange) {
+        onErrorChange("Failed to proceed with booking. Please try again.");
+      }
+    }
+  };
+
+  useEffect(() => {
+    try {
+      const results = localStorage.getItem("flightSearchResults");
+      if (results) {
+        const parsedResults = JSON.parse(results) as FlightSearchResponse;
+        if (parsedResults?.Response?.Results?.[0]) {
+          // Initialize price range based on actual prices
+          const prices = parsedResults.Response.Results[0].map(
+            (f) => f.Fare.PublishedFare
+          );
+          const minPrice = Math.min(...prices);
+          const maxPrice = Math.max(...prices);
+          setFilters({
+            ...filters,
+            priceRange: [minPrice, maxPrice],
+          });
+
+          // Sort by price initially
+          const sortedFlights = parsedResults.Response.Results[0].sort(
+            (a, b) => a.Fare.PublishedFare - b.Fare.PublishedFare
+          );
+          setFlights(sortedFlights);
+        }
+      }
+    } catch (err) {
+      setError("Failed to load flight results");
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const filteredFlights = flights.filter((flight) => {
+    // Price filter
+    const price = flight.Fare.PublishedFare;
+    if (price < filters.priceRange[0] || price > filters.priceRange[1]) {
+      return false;
+    }
+
+    // Stops filter
+    if (filters.stops.length > 0) {
+      const stopCount = flight.Segments[0].length - 1;
+      const stopType = stopCount === 0 ? "non-stop" : "one-stop";
+      if (!filters.stops.includes(stopType)) {
+        return false;
+      }
+    }
+
+    // Airline filter
+    if (filters.airlines.length > 0) {
+      const airline = flight.Segments[0][0].Airline.AirlineName;
+      if (!filters.airlines.includes(airline)) {
+        return false;
+      }
+    }
+
+    // Departure time filter
+    if (filters.departureTime.length > 0) {
+      const timeOfDay = getTimeOfDay(flight.Segments[0][0].Origin.DepTime);
+      if (!filters.departureTime.includes(timeOfDay)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const sortedFlights = [...filteredFlights].sort((a, b) => {
+    switch (filters.sortBy) {
+      case "cheapest":
+        return a.Fare.PublishedFare - b.Fare.PublishedFare;
+      case "duration":
+        const aDuration = a.Segments[0].reduce(
+          (acc, seg) => acc + seg.Duration + (seg.GroundTime || 0),
+          0
+        );
+        const bDuration = b.Segments[0].reduce(
+          (acc, seg) => acc + seg.Duration + (seg.GroundTime || 0),
+          0
+        );
+        return aDuration - bDuration;
+      default:
+        return 0;
+    }
+  });
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>{error}</AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="flex-1">
-      <h1 className="text-2xl font-bold mb-4">
-        {filteredFlights.length} flights from {selectedFrom} to {selectedTo}
-      </h1>
-
-      {/* Date Navigation */}
-      <div className="flex items-center gap-2 mb-6 bg-white p-4 rounded-lg overflow-x-auto">
-        <Button variant="outline" size="icon" className="rounded-full flex-shrink-0">
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
-        {dates.map((date, index) => (
-          <div
-            key={index}
-            className={cn(
-              "px-4 py-2 text-center cursor-pointer rounded-lg flex-shrink-0",
-              date.active && "bg-red-50 text-red-600",
-            )}
-          >
-            <div className="text-sm whitespace-nowrap">{date.date}</div>
-            <div className="font-semibold">{date.price}</div>
+      {/* Flight Count and Sort Options */}
+      <Card className="p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {sortedFlights.length} flights found
           </div>
-        ))}
-        <Button variant="outline" size="icon" className="rounded-full flex-shrink-0">
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-      </div>
-
-      {/* Sort Options */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        {[
-          { id: "cheapest", label: "CHEAPEST", desc: "₹ 8,375 • 01h 40m" },
-          { id: "fastest", label: "FASTEST", desc: "₹ 8,375 • 01h 40m" },
-          { id: "earliest", label: "EARLIEST", desc: "₹ 8,683 • 02h 10m" },
-          { id: "recommended", label: "RECOMMENDED", desc: "Best flights for you" },
-        ].map((option) => (
-          <Card
-            key={option.id}
-            className={cn(
-              "p-4 cursor-pointer hover:border-red-600",
-              filters.sortBy === option.id && "border-red-600 bg-red-50",
-            )}
-            onClick={() => setFilters((prev) => ({ ...prev, sortBy: option.id }))}
-          >
-            <div className="font-semibold">{option.label}</div>
-            <div className="text-sm text-gray-600">{option.desc}</div>
-          </Card>
-        ))}
-      </div>
+          <div className="flex gap-4">
+            {[
+              { label: "Cheapest", value: "cheapest" },
+              { label: "Shortest", value: "duration" },
+            ].map((option) => (
+              <Button
+                key={option.value}
+                variant={filters.sortBy === option.value ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, sortBy: option.value })}
+                className={
+                  filters.sortBy === option.value
+                    ? "bg-red-500 hover:bg-red-600"
+                    : ""
+                }
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </Card>
 
       {/* Flight Results */}
       <div className="space-y-4">
-        {filteredFlights.map((flight) => (
-          <Card key={flight.id} className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-4">
-                <Image
-                  src={flight.logo || "/placeholder.svg"}
-                  alt={flight.airline}
-                  width={40}
-                  height={40}
-                  className="w-10 h-10"
-                />
+        {sortedFlights.map((flight) => (
+          <Card key={flight.ResultIndex} className="p-6">
+            <div className="flex items-center justify-between">
+              {/* Airline Info */}
+              <div className="flex items-center gap-6">
+                <div className="w-16">
+                  {flight.Segments[0][0].Airline.AirlineCode ? (
+                    <img
+                      src={`/airlines/${flight.Segments[0][0].Airline.AirlineCode.toLowerCase()}.png`}
+                      alt={flight.Segments[0][0].Airline.AirlineName}
+                      className="w-full"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src =
+                          "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 2L2 22'/%3E%3Cpath d='M5.45 5.11L2 22l10-10'/%3E%3Cpath d='M2 2l20 20'/%3E%3Cpath d='M18.55 5.11L22 22l-10-10'/%3E%3C/svg%3E";
+                        e.currentTarget.className = "w-full p-2 text-gray-400";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 rounded">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="w-8 h-8 text-gray-400"
+                      >
+                        <path d="M22 2L2 22" />
+                        <path d="M5.45 5.11L2 22l10-10" />
+                        <path d="M2 2l20 20" />
+                        <path d="M18.55 5.11L22 22l-10-10" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
                 <div>
-                  <div className="font-semibold text-lg">{flight.airline}</div>
-                  <div className="text-sm text-gray-600">{flight.flightNumber}</div>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">₹ {flight.price.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">per adult</div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-center">
-                <div className="text-xl font-semibold">{flight.departureTime}</div>
-                <div className="text-sm text-gray-600">{selectedFrom.split(",")[0]}</div>
-              </div>
-              <div className="flex flex-col items-center">
-                <div className="text-sm font-medium text-gray-600">{flight.duration}</div>
-                <div className="w-32 h-px bg-gray-300 my-2"></div>
-                <div className="text-xs text-gray-500">{flight.type}</div>
-              </div>
-              <div className="text-center">
-                <div className="text-xl font-semibold">{flight.arrivalTime}</div>
-                <div className="text-sm text-gray-600">{selectedTo.split(",")[0]}</div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center text-sm text-gray-600">
-                  <Clock className="w-4 h-4 mr-1" />
-                  {flight.onTime} on time
-                </div>
-                {flight.meal && (
-                  <div className="flex items-center text-sm text-gray-600">
-                    <span className="mr-1">🍽️</span> Free Meal
+                  <div className="font-semibold">
+                    {flight.Segments[0][0].Airline.AirlineName}
                   </div>
+                  <div className="text-sm text-gray-500">
+                    {flight.Segments[0][0].Airline.AirlineCode}{" "}
+                    {flight.Segments[0][0].Airline.FlightNumber}
+                  </div>
+                </div>
+              </div>
+
+              {/* Flight Times */}
+              <div className="flex items-center gap-16">
+                {/* Departure */}
+                <div className="text-center">
+                  <div className="font-semibold">
+                    {format(
+                      new Date(flight.Segments[0][0].Origin.DepTime),
+                      "HH:mm"
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {flight.Segments[0][0].Origin.Airport.CityName}
+                    <div className="text-xs">
+                      Terminal {flight.Segments[0][0].Origin.Airport.Terminal || "-"}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Duration */}
+                <div className="flex flex-col items-center">
+                  <div className="text-sm text-gray-500">
+                    {formatDuration(
+                      flight.Segments[0].reduce(
+                        (acc, seg) => acc + seg.Duration + (seg.GroundTime || 0),
+                        0
+                      )
+                    )}
+                  </div>
+                  <div className="relative w-32 h-px bg-gray-300 my-2">
+                    <div className="absolute -top-2 left-0 right-0 flex justify-center">
+                      <Plane className="w-4 h-4 text-gray-400" />
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {flight.Segments[0].length === 1
+                      ? "Non stop"
+                      : `${flight.Segments[0].length - 1} ${
+                          flight.Segments[0].length - 1 === 1 ? "stop" : "stops"
+                        }`}
+                  </div>
+                </div>
+
+                {/* Arrival */}
+                <div className="text-center">
+                  <div className="font-semibold">
+                    {format(
+                      new Date(
+                        flight.Segments[0][
+                          flight.Segments[0].length - 1
+                        ].Destination.ArrTime
+                      ),
+                      "HH:mm"
+                    )}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {
+                      flight.Segments[0][flight.Segments[0].length - 1]
+                        .Destination.Airport.CityName
+                    }
+                    <div className="text-xs">
+                      Terminal{" "}
+                      {flight.Segments[0][flight.Segments[0].length - 1]
+                        .Destination.Airport.Terminal || "-"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Price and Book */}
+              <div className="text-right">
+                <div className="font-semibold text-xl">
+                  ₹{flight.Fare.PublishedFare.toLocaleString("en-IN")}
+                </div>
+                <div className="text-sm text-gray-500">per traveller</div>
+                <Button
+                  className="mt-2 bg-red-500 hover:bg-red-600 text-white"
+                  onClick={() => {
+                    console.log("Book Now clicked for flight:", flight);
+                    handleBookNow(flight);
+                  }}
+                >
+                  Book Now
+                </Button>
+              </div>
+            </div>
+
+            {/* Flight Details */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  Total Duration:{" "}
+                  {formatDuration(
+                    flight.Segments[0].reduce(
+                      (acc, seg) => acc + seg.Duration + (seg.GroundTime || 0),
+                      0
+                    )
+                  )}
+                </div>
+                <div>Cabin Bag: {flight.Segments[0][0].CabinBaggage}</div>
+                <div>Check-in: {flight.Segments[0][0].Baggage}</div>
+                <div
+                  className={
+                    flight.IsRefundable ? "text-green-600" : "text-red-600"
+                  }
+                >
+                  {flight.IsRefundable ? "Refundable" : "Non-Refundable"}
+                </div>
+                {flight.AirlineRemark && (
+                  <div className="text-blue-600">{flight.AirlineRemark}</div>
                 )}
               </div>
-              <Button
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2"
-                onClick={() => router.push(`/flight-search/checkout`)}
-              >
-                BOOK FLIGHT
-              </Button>
-            </div>
 
-            <div className="grid grid-cols-4 gap-4 text-sm border-t pt-4">
-              <div>
-                <Label className="text-gray-600 mb-1 block">Baggage</Label>
-                <div className="font-medium flex items-center">
-                  <Plane className="w-4 h-4 mr-1" /> Check-in: {flight.baggage}
+              {/* Multiple Segments Info */}
+              {/* Multiple Segments Info */}
+              {flight.Segments[0].length > 1 && (
+                <div className="mt-2 text-sm text-gray-500">
+                  <div className="font-medium mb-1">Layovers:</div>
+                  {flight.Segments[0].slice(0, -1).map((segment, index) => (
+                    <div key={index} className="ml-4">
+                      {segment.Destination.Airport.CityName} -{" "}
+                      {formatDuration(flight.Segments[0][index + 1].GroundTime)}{" "}
+                      layover
+                    </div>
+                  ))}
                 </div>
-                <div className="font-medium flex items-center">
-                  <Users className="w-4 h-4 mr-1" /> Cabin: {flight.handBaggage}
-                </div>
-              </div>
-              <div>
-                <Label className="text-gray-600 mb-1 block">Cancellation</Label>
-                <div className="font-medium">Starting {flight.cancellationFee}</div>
-              </div>
-              <div>
-                <Label className="text-gray-600 mb-1 block">Available Seats</Label>
-                <div className="font-medium">{flight.seats} seats left</div>
-              </div>
-              <div>
-                <Label className="text-gray-600 mb-1 block">Offers</Label>
-                {flight.offers.map((offer, index) => (
-                  <div key={index} className="text-red-600 flex items-center">
-                    <span className="w-2 h-2 bg-red-600 rounded-full mr-2"></span>
-                    {offer}
+              )}
+
+              {/* Fare Rules Summary */}
+              {flight.MiniFareRules && flight.MiniFareRules[0] && (
+                <div className="mt-2 text-sm">
+                  <div className="font-medium mb-1 text-gray-700">
+                    Fare Rules:
                   </div>
-                ))}
-              </div>
+                  <div className="grid grid-cols-2 gap-4 ml-4">
+                    {flight.MiniFareRules[0]
+                      .filter(
+                        (rule) =>
+                          rule.Type === "Cancellation" ||
+                          rule.Type === "Reissue"
+                      )
+                      .map((rule, index) => (
+                        <div key={index} className="text-gray-600">
+                          <span className="font-medium">{rule.Type}:</span>{" "}
+                          {rule.From !== "44" ? (
+                            <>
+                              {rule.Details}
+                              {rule.From && rule.To
+                                ? ` (${rule.From}-${
+                                    rule.To
+                                  } ${rule.Unit.toLowerCase()})`
+                                : ""}
+                            </>
+                          ) : (
+                            "Non-changeable"
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
         ))}
+
+        {sortedFlights.length === 0 && (
+          <Card className="p-6 text-center">
+            <div className="text-xl font-semibold text-gray-600 mb-2">
+              No flights found
+            </div>
+            <div className="text-gray-500">
+              Try adjusting your filters or search for different dates
+            </div>
+          </Card>
+        )}
       </div>
     </div>
-  )
+  );
 }
-
