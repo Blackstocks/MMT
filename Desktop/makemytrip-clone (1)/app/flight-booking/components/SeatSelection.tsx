@@ -1,156 +1,190 @@
+// app/flight-booking/components/SeatSelection.tsx
 "use client";
 
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Alert } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
 
-interface SeatProps {
-  number: string;
-  price: number | null;
-  status: "available" | "occupied" | "selected" | "free";
-  type?: "exit" | "xl" | "non-reclining";
+interface SeatSelectionProps {
+  maxSeats: number;
+  selectedSeats: string[];
+  onSeatSelect: (seat: string) => void;
+  calculateSeatPrice: (seat: string) => number;
 }
 
-export default function SeatSelection() {
-  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+export function SeatSelection({ 
+  maxSeats, 
+  selectedSeats, 
+  onSeatSelect,
+  calculateSeatPrice 
+}: SeatSelectionProps) {
+  const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
 
-  // This would typically come from an API
-  const generateSeats = () => {
-    const rows = Array.from({ length: 30 }, (_, i) => i + 1);
-    const columns = ["A", "B", "C", "", "D", "E", "F"];
-    
-    return rows.map(row => 
-      columns.map(col => {
-        if (!col) return null;
-        const seatNumber = `${row}${col}`;
-        return {
-          number: seatNumber,
-          price: row >= 15 && row <= 20 ? 0 : 299,
-          status: row === 21 || row === 26 || row === 28 ? "occupied" : 
-                 (row >= 15 && row <= 20) ? "free" : "available",
-          type: row === 30 ? "non-reclining" : undefined
-        };
-      })
-    );
+  const handleSeatClick = (seatId: string, isAvailable: boolean, isBlocked: boolean) => {
+    if (!isAvailable || isBlocked) return;
+    onSeatSelect(seatId); // Simply pass the seat ID to parent for handling
   };
 
-  const seats = generateSeats();
+  // Returns true if seat position should be blocked (for exits, etc)
+  const isBlockedSeat = (row: number, col: number): boolean => {
+    if (row === 12 || row === 13) { // Emergency exit rows
+      return col === 0 || col === 5; // Block first and last seats
+    }
+    return false;
+  };
 
-  const handleSeatSelect = (seat: SeatProps) => {
-    if (seat.status === "occupied") return;
-    setSelectedSeat(seat.number);
+  const renderSeatGrid = () => {
+    const rows = 30;
+    const seatsPerRow = 6;
+    const grid = [];
+
+    for (let row = 1; row <= rows; row++) {
+      const rowSeats = [];
+      for (let col = 0; col < seatsPerRow; col++) {
+        const seatLetter = String.fromCharCode(65 + col);
+        const seatId = `${row}${seatLetter}`;
+        const isBlocked = isBlockedSeat(row, col);
+        const isEmergencyExit = row === 12 || row === 13;
+        const isAvailable = !isBlocked && Math.random() > 0.3;
+        const isSelected = selectedSeats.includes(seatId);
+        const isPremium = row <= 4 || (row >= 12 && row <= 13);
+        const isFree = row >= 16 && row <= 19 && (col === 1 || col === 4);
+        const isNonReclining = row === 30;
+
+        rowSeats.push(
+          <button
+            key={seatId}
+            className={cn(
+              "w-6 h-6 text-[10px] font-medium rounded transition-colors relative",
+              isBlocked ? "invisible" : "visible",
+              isAvailable ? (
+                isSelected 
+                  ? "bg-blue-500 text-white ring-2 ring-blue-600" 
+                  : isFree 
+                    ? "bg-emerald-200" 
+                    : isPremium 
+                      ? "bg-violet-200"
+                      : "bg-blue-100"
+              ) : "bg-gray-300 cursor-not-allowed"
+            )}
+            onClick={() => handleSeatClick(seatId, isAvailable, isBlocked)}
+            disabled={!isAvailable || isBlocked}
+          >
+            {isSelected ? "✓" : seatLetter}
+            {isAvailable && (
+              <span className={cn(
+                "absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px]",
+                isSelected && "font-medium text-blue-600"
+              )}>
+                ₹{calculateSeatPrice(seatId)}
+              </span>
+            )}
+          </button>
+        );
+
+        // Add aisle gap after seats C and D
+        if (col === 2) rowSeats.push(<div key={`aisle1-${row}`} className="w-3" />);
+        if (col === 3) rowSeats.push(<div key={`aisle2-${row}`} className="w-3" />);
+      }
+
+      grid.push(
+        <div key={row} className="flex items-center gap-1 mb-6">
+          <span className="w-4 text-right text-[10px] font-medium">{row}</span>
+          <div className="flex gap-1">{rowSeats}</div>
+          <span className="w-4 text-left text-[10px] font-medium">{row}</span>
+          
+          {/* Emergency exit indicators */}
+          {row === 12 && (
+            <>
+              <div className="absolute -left-16 text-[10px] font-medium text-red-500 flex items-center">
+                <div className="w-1 h-8 bg-red-500 mr-1" />
+                EXIT
+              </div>
+              <div className="absolute -right-16 text-[10px] font-medium text-red-500 flex items-center">
+                EXIT
+                <div className="w-1 h-8 bg-red-500 ml-1" />
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    return grid;
   };
 
   return (
-    <div className="p-6 bg-white rounded-lg">
-      {/* Tabs */}
-      <div className="border-b mb-6">
-        <div className="flex gap-6">
-          <button className="px-4 py-2 text-blue-500 border-b-2 border-blue-500">
-            Seats
-          </button>
-          <button className="px-4 py-2 text-gray-500">
-            Meals
-          </button>
-        </div>
-      </div>
-
-      {/* Promo Banner */}
-      <Alert className="bg-green-50 text-green-700 mb-6">
-        Get Free Seat with coupon HSBCFREESEAT
-      </Alert>
-
-      {/* Flight Info */}
+    <div className="bg-white p-4 rounded-lg shadow">
+      {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-xl font-semibold">Kolkata → Jaipur</h2>
-          <p className="text-gray-600">
-            {selectedSeat ? "1" : "0"} of 1 Seat(s) Selected
+          <h3 className="text-sm font-medium">
+            {selectedSeats.length} of {maxSeats} Seat(s) Selected
+          </h3>
+          <p className={cn(
+            "text-xs",
+            selectedSeats.length === maxSeats ? "text-green-600" : "text-orange-500"
+          )}>
+            {selectedSeats.length === maxSeats ? "✓ Selection complete" : "Selection pending"}
           </p>
         </div>
-        <div className="text-sm text-orange-500">
-          Selection pending
+        <div className="text-xs text-green-600 bg-green-50 px-3 py-1 rounded-full">
+          Use code HSBCFREESEAT
         </div>
       </div>
 
-      {/* Seat Map */}
-      <div className="overflow-x-auto">
-        <div className="inline-block min-w-full">
-          {seats.map((row, rowIndex) => (
-            <div key={rowIndex} className="flex justify-center gap-1 mb-1">
-              <span className="w-6 text-center text-sm text-gray-500">
-                {rowIndex + 1}
-              </span>
-              {row.map((seat, colIndex) => 
-                seat === null ? (
-                  <div key={colIndex} className="w-8" />
-                ) : (
-                  <button
-                    key={colIndex}
-                    className={`
-                      w-8 h-8 rounded text-xs flex flex-col items-center justify-center
-                      ${seat.status === 'available' ? 'bg-blue-100 hover:bg-blue-200' : ''}
-                      ${seat.status === 'occupied' ? 'bg-gray-200 cursor-not-allowed' : ''}
-                      ${seat.status === 'selected' ? 'bg-green-500 text-white' : ''}
-                      ${seat.status === 'free' ? 'bg-green-100 text-green-700' : ''}
-                      ${seat.type === 'non-reclining' ? 'border-t-2 border-black' : ''}
-                    `}
-                    onClick={() => handleSeatSelect(seat)}
-                    disabled={seat.status === 'occupied'}
-                  >
-                    {seat.number.slice(1)}
-                    {seat.price !== null && seat.price > 0 && (
-                      <span className="text-[10px]">₹{seat.price}</span>
-                    )}
-                  </button>
-                )
-              )}
-              <span className="w-6 text-center text-sm text-gray-500">
-                {rowIndex + 1}
-              </span>
-            </div>
-          ))}
+      {/* Plane Shape */}
+      <div className="relative mx-auto w-[300px]">
+        {/* Nose */}
+        <div className="h-8 bg-gradient-to-b from-gray-100 rounded-t-full mb-4" />
+
+        {/* Seat Map */}
+        <div className="relative px-8">
+          {renderSeatGrid()}
         </div>
+
+        {/* Tail */}
+        <div className="h-8 bg-gradient-to-t from-gray-100 rounded-b-full mt-4" />
       </div>
 
       {/* Legend */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-100"></div>
-          <span className="text-sm">Free</span>
+      <div className="mt-6 grid grid-cols-3 gap-4 text-[10px]">
+        <div>
+          <div className="font-medium mb-1">Seat Type</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-emerald-200" /> Free
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-100" /> Regular
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-violet-200" /> Premium
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-100"></div>
-          <span className="text-sm">₹ 130-400</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-violet-100"></div>
-          <span className="text-sm">₹ 450-2000</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border border-gray-300"></div>
-          <span className="text-sm">Exit Row Seats</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-white border-t-2 border-black"></div>
-          <span className="text-sm">Non Reclining</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 flex items-center justify-center text-[10px]">XL</div>
-          <span className="text-sm">Extra Legroom</span>
-        </div>
-      </div>
 
-      {/* Row Facilities */}
-      <div className="mt-8 flex justify-center gap-8">
-        <div className="flex items-center gap-2">
-          <img src="/icons/galley.svg" alt="Galley" className="w-6 h-6" />
-          <span className="text-sm">Galley</span>
+        <div>
+          <div className="font-medium mb-1">Features</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 border-r-2 border-red-500" /> Exit Row
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 border-b border-black" /> Non-Reclining
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <img src="/icons/washroom.svg" alt="Washroom" className="w-6 h-6" />
-          <span className="text-sm">Washroom</span>
+
+        <div>
+          <div className="font-medium mb-1">Status</div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-blue-500" /> Selected
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-gray-300" /> Unavailable
+            </div>
+          </div>
         </div>
       </div>
     </div>

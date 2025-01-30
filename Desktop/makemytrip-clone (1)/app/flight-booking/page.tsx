@@ -1,199 +1,324 @@
+// app/flight-booking/page.tsx
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { Card } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Header } from "../components/header";
+import { Footer } from "../components/footer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Plane, Luggage, User } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import { flightService } from "@/services/flightService";
+import { toast } from "@/components/ui/use-toast";
 
-// Step 1: Selected Flight Details Component
-const FlightDetails = ({ flight }: { flight: any }) => (
-  <Card className="mb-4">
-    <div className="border-l-4 border-emerald-500 p-6">
-      <div className="flex justify-between items-start mb-4">
-        <div>
-          <h2 className="text-xl font-semibold">
-            {flight?.Segments[0][0].Origin.Airport.CityName} → {flight?.Segments[0][0].Destination.Airport.CityName}
-          </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span>Saturday, Feb 1</span>
-            <span>Non Stop • {flight?.Segments[0][0].Duration}m</span>
-          </div>
-        </div>
-        <div className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded text-sm">
-          CANCELLATION FEES APPLY
-        </div>
-      </div>
+// Import our components
+import { FlightSummary } from "./components/FlightSummary";
+import { SeatSelection } from "./components/SeatSelection";
+import { MealSelection } from "./components/MealSelection";
+import { PassengerDetails } from "./components/PassengerDetails";
+import { AddOnServices } from "./components/AddOnServices";
+import { FareSummary } from "./components/FareSummary";
 
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-900 rounded-lg flex items-center justify-center">
-            <img 
-              src={`/airlines/${flight?.Segments[0][0].Airline.AirlineCode.toLowerCase()}.png`}
-              alt={flight?.Segments[0][0].Airline.AirlineName}
-              className="w-8 h-8"
-            />
-          </div>
-          <div>
-            <div className="font-semibold">{flight?.Segments[0][0].Airline.AirlineName}</div>
-            <div className="text-gray-600">
-              {flight?.Segments[0][0].Airline.AirlineCode} {flight?.Segments[0][0].Airline.FlightNumber} • 
-              {flight?.Segments[0][0].Craft}
-            </div>
-          </div>
-        </div>
-        <div>
-          <span className="text-gray-700">Economy</span>
-          <span className="text-teal-600 ml-2">SAVER</span>
-        </div>
-      </div>
-
-      <div className="border-t border-gray-200 pt-4">
-        <div className="flex gap-8">
-          <div className="flex items-center gap-2">
-            <Luggage className="w-5 h-5 text-gray-600" />
-            <span>Cabin Baggage: </span>
-            <span className="font-medium">{flight?.Segments[0][0].CabinBaggage}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Luggage className="w-5 h-5 text-gray-600" />
-            <span>Check-In Baggage: </span>
-            <span className="font-medium">{flight?.Segments[0][0].Baggage}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </Card>
-);
-
-// Step 2: Fast Forward Service Component
-const FastForwardService = () => (
-  <Card className="mb-4">
-    <div className="p-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-            IndiGo Fast Forward
-            <span className="text-green-600 text-sm">
-              Apply code: PRIORITYCHECKIN to get 250 OFF on Fast Forward
-            </span>
-          </h2>
-          <p className="text-gray-600">
-            A service that provides you a hassle free and comfortable check-in experience at the airport with our priority check-in counter.
-          </p>
-          <div className="flex items-center gap-3 mt-4 text-gray-700">
-            <div className="flex items-center gap-1">
-              <User className="w-4 h-4" />
-              <span>Priority Check-in</span>
-            </div>
-            <span>+</span>
-            <div className="flex items-center gap-1">
-              <Plane className="w-4 h-4" />
-              <span>Any Time Boarding</span>
-            </div>
-            <span>=</span>
-            <span className="font-semibold">₹ 500</span>
-          </div>
-        </div>
-        <Button variant="outline" className="text-blue-500">+ADD</Button>
-      </div>
-    </div>
-  </Card>
-);
-
-// Step 3: Traveller Details Component
-const TravellerDetails = () => {
-  const [adultsAdded, setAdultsAdded] = useState(0);
-
-  return (
-    <Card className="mb-4">
-      <div className="p-6">
-        <h2 className="text-xl font-semibold mb-6">Traveller Details</h2>
-
-        <div className="mb-6">
-          <div className="flex justify-between mb-2">
-            <div className="font-medium flex items-center gap-2">
-              <User className="w-5 h-5" />
-              ADULT (12 yrs+)
-            </div>
-            <div className="text-gray-500">{adultsAdded}/1 added</div>
-          </div>
-
-          {adultsAdded === 0 && (
-            <div className="text-gray-600 mb-3">
-              You have not added any adults to the list
-            </div>
-          )}
-
-          <Button 
-            variant="outline" 
-            className="text-blue-500"
-            onClick={() => setAdultsAdded(prev => prev + 1)}
-          >
-            + ADD NEW ADULT
-          </Button>
-        </div>
-
-        <div className="border-t pt-6">
-          <h3 className="font-semibold mb-4">Booking details will be sent to</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Country Code</label>
-              <Input defaultValue="India(91)" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Mobile No</label>
-              <Input placeholder="Mobile No" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Email</label>
-              <Input type="email" />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="flex items-center gap-2">
-            <Checkbox />
-            <span>
-              I have a GST number <span className="text-gray-500">(Optional)</span>
-            </span>
-          </label>
-        </div>
-      </div>
-    </Card>
-  );
-};
-
-// Main Booking Page Component
-export default function BookingPage() {
-  const [selectedFlight, setSelectedFlight] = useState<any>(null);
+export default function FlightBookingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
+  // States
+  const [activeTab, setActiveTab] = useState("seats");
+  const [flightDetails, setFlightDetails] = useState<any>(null);
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
+  const [fareRules, setFareRules] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [addOns, setAddOns] = useState<string[]>([]);
+  const travelClass = searchParams.get('class') || 'Economy';
+  const [formData, setFormData] = useState({
+    passengers: [
+      {
+        title: "Mr",
+        firstName: "",
+        lastName: "",
+        email: "",
+        countryCode: "+91",
+        mobile: "",
+      },
+    ],
+    state: "delhi",
+    saveTraveller: false,
+    gstNumber: "",
+  });
+
+  // Calculate seat price function
+  const calculateSeatPrice = (seat: string) => {
+    const row = parseInt(seat.replace(/[A-F]/g, ""));
+    const col = seat.slice(-1).charCodeAt(0) - 65; // Convert A-F to 0-5
+    const isPremium = row <= 4 || (row >= 12 && row <= 13);
+    const isFree = row >= 16 && row <= 19 && (col === 1 || col === 4); // B and E seats
+
+    if (isFree) return 0;
+    if (isPremium) return 450; // Fixed to always be 450 for premium seats
+    return 200;
+  };
+
+  // Initialize booking data
   useEffect(() => {
-    // Load flight details from localStorage
-    const flight = localStorage.getItem('selectedFlight');
-    if (flight) {
-      setSelectedFlight(JSON.parse(flight));
-    }
+    const initializeBooking = async () => {
+      try {
+        setLoading(true);
+        const selectedFlightStr = localStorage.getItem("selectedFlight");
+        if (!selectedFlightStr) {
+          throw new Error("No flight selected");
+        }
+  
+        console.log('Raw flight data from localStorage:', selectedFlightStr); // Log raw data
+        const selectedFlight = JSON.parse(selectedFlightStr);
+        console.log('Flight data structure:', JSON.stringify(selectedFlight, null, 2));// Log parsed data
+        
+        setFlightDetails(selectedFlight);
+  
+        if (selectedFlight.traceId && selectedFlight.resultIndex) {
+          const rules = await flightService.getFareRules(
+            selectedFlight.traceId,
+            selectedFlight.resultIndex
+          );
+          console.log('Fare rules:', rules); // Log fare rules
+          setFareRules(rules);
+        }
+      } catch (err) {
+        console.error("Error initializing booking:", err);
+        // Log more details about the error
+        if (err instanceof Error) {
+          console.error("Error details:", {
+            message: err.message,
+            stack: err.stack
+          });
+        }
+        setError(
+          err instanceof Error ? err.message : "Failed to load booking details"
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    initializeBooking();
   }, []);
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Step 1: Flight Details */}
-        {selectedFlight && <FlightDetails flight={selectedFlight} />}
+  // Handlers
+  const handleSeatSelect = (seatNumber: string) => {
+    const passengerCount = parseInt(searchParams.get("passengers") || "1");
 
-        {/* Step 2: Fast Forward Service */}
-        <FastForwardService />
+    setSelectedSeats((prev) => {
+      // If clicking an already selected seat, just remove it
+      if (prev.includes(seatNumber)) {
+        return prev.filter((s) => s !== seatNumber);
+      }
 
-        {/* Step 3: Traveller Details */}
-        <TravellerDetails />
+      // If we haven't reached max seats yet, add the new seat
+      if (prev.length < passengerCount) {
+        return [...prev, seatNumber];
+      }
 
-        {/* Additional sections like cancellation policy will follow */}
+      // If we're at max seats, replace the first selected seat with the new one
+      return [...prev.slice(1), seatNumber];
+    });
+  };
+
+  const handleAddOnToggle = (service: string) => {
+    setAddOns((prev) => {
+      if (prev.includes(service)) {
+        return prev.filter((s) => s !== service);
+      }
+      return [...prev, service];
+    });
+  };
+
+  const handleFormChange = (field: string, value: string | boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleBooking = async () => {
+    try {
+      if (!validateForm()) return;
+      if (!flightDetails) throw new Error("No flight selected");
+
+      setLoading(true);
+      const bookingRequest = {
+        traceId: flightDetails.traceId,
+        resultIndex: flightDetails.resultIndex,
+        passengers: formData.passengers.map((passenger, index) => ({
+          Title: passenger.title,
+          FirstName: passenger.firstName,
+          LastName: passenger.lastName,
+          PaxType: 1,
+          DateOfBirth: "1990-01-01T00:00:00",
+          Gender: passenger.title === "Mr" ? 1 : 2,
+          PassportNo: "",
+          PassportExpiry: "",
+          AddressLine1: "",
+          AddressLine2: "",
+          Fare: flightDetails.Fare,
+          City: formData.city,
+          CountryCode: "IN",
+          CellCountryCode: passenger.countryCode.replace("+", ""),
+          ContactNo: passenger.mobile,
+          Nationality: "IN",
+          Email: passenger.email,
+          IsLeadPax: index === 0,
+          FFAirlineCode: null,
+          FFNumber: "",
+          GSTCompanyAddress: "",
+          GSTCompanyContactNumber: "",
+          GSTCompanyName: "",
+          GSTNumber: index === 0 ? formData.gstNumber : "",
+          GSTCompanyEmail: "",
+        })),
+      };
+
+      const response = await flightService.bookFlight(bookingRequest);
+      localStorage.setItem("bookingConfirmation", JSON.stringify(response));
+
+      toast({
+        title: "Success",
+        description: "Flight booked successfully!",
+      });
+
+      router.push("/booking-confirmation");
+    } catch (err) {
+      toast({
+        title: "Booking Failed",
+        description:
+          err instanceof Error ? err.message : "Failed to book flight",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const isValid = formData.passengers.every((passenger) => {
+      if (!passenger.firstName || !passenger.lastName) {
+        toast({
+          title: "Error",
+          description: "Please enter passenger name for all passengers",
+          variant: "destructive",
+        });
+        return false;
+      }
+      if (!passenger.mobile || !passenger.email) {
+        toast({
+          title: "Error",
+          description: "Please enter contact details for all passengers",
+          variant: "destructive",
+        });
+        return false;
+      }
+      return true;
+    });
+
+    return isValid;
+  };
+
+  // Loading and Error States
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-red-500"></div>
       </div>
-    </div>
+    );
+  }
+
+  if (error || !flightDetails) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Alert variant="destructive" className="max-w-lg">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            {error || "Failed to load flight details. Please try again."}
+          </AlertDescription>
+          <Button
+            variant="outline"
+            onClick={() => router.push("/flight-search")}
+            className="mt-4"
+          >
+            Back to Search
+          </Button>
+        </Alert>
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50">
+      <Header />
+
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Flight Summary */}
+        <FlightSummary flight={flightDetails} />
+
+        <div className="grid grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="col-span-2 space-y-6">
+
+            {/* Passenger Details */}
+            {/* Passenger Details */}
+            <PassengerDetails
+              maxPassengers={parseInt(searchParams.get("passengers") || "1")}
+              formData={formData}
+              onFormChange={handleFormChange}
+            />
+
+            {/* Add-on Services */}
+            <AddOnServices onAddService={handleAddOnToggle} />
+            {/* Services Tabs */}
+            <Tabs defaultValue="seats" onValueChange={setActiveTab}>
+              <TabsList className="w-full border-b">
+                <TabsTrigger value="seats" className="flex gap-2">
+                  <span className="w-5 h-5">🪑</span>
+                  Seats
+                </TabsTrigger>
+                <TabsTrigger value="meals" className="flex gap-2">
+                  <span className="w-5 h-5">🍱</span>
+                  Meals
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="seats">
+                <SeatSelection
+                  maxSeats={parseInt(searchParams.get("passengers") || "1")}
+                  selectedSeats={selectedSeats}
+                  onSeatSelect={handleSeatSelect}
+                  calculateSeatPrice={calculateSeatPrice}
+                />
+              </TabsContent>
+
+              <TabsContent value="meals">
+                <MealSelection />
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          {/* Price Summary Sidebar */}
+          <div className="col-span-1">
+            <FareSummary
+              flight={flightDetails}
+              selectedSeats={selectedSeats}
+              addOns={addOns}
+              calculateSeatPrice={calculateSeatPrice}
+              onBook={handleBooking}
+              loading={loading}
+              passengerCount={parseInt(searchParams.get("passengers") || "1")}
+            />
+          </div>
+        </div>
+      </div>
+
+      <Footer />
+    </main>
   );
 }

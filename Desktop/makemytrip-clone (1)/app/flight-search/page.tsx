@@ -27,6 +27,7 @@ export default function FlightSearchPage() {
   const [selectedTripType, setSelectedTripType] = useState(
     searchParams.get("tripType") || "one-way"
   );
+  
   const [selectedFrom, setSelectedFrom] = useState(
     searchParams.get("from") || ""
   );
@@ -48,9 +49,11 @@ export default function FlightSearchPage() {
     children: Number(searchParams.get("children")) || 0,
     infants: Number(searchParams.get("infants")) || 0,
   });
-  const [travelClass, setTravelClass] = useState(
-    searchParams.get("travelClass") || "Economy"
-  );
+  const [travelClass, setTravelClass] = useState(() => {
+    const classParam = searchParams.get("class");
+    // Handle cases where class might be "Economy/Premium Economy"
+    return classParam?.split('/')[0] || "Economy";
+  });
 
   // Filters
   const [filters, setFilters] = useState({

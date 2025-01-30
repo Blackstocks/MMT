@@ -56,8 +56,8 @@ type TravelClass = (typeof travelClasses)[number];
 export default function Home() {
   const router = useRouter();
   const [tripType, setTripType] = useState("one-way");
-  const [from, setFrom] = useState("Jaipur");
-  const [to, setTo] = useState("Mumbai");
+  const [from, setFrom] = useState("Select");
+  const [to, setTo] = useState("Select");
   const [departureDate, setDepartureDate] = useState<Date>(new Date());
   const [returnDate, setReturnDate] = useState<Date>();
   const [travelers, setTravelers] = useState({
