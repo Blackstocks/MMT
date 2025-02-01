@@ -1,7 +1,5 @@
-"use client"
-
-// app/flight-search/page.tsx
-
+// app/flight-search/components/FlightSearchClient.tsx
+"use client";
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,51 +9,57 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import FlightSearchForm from "../components/FlightSearchForm";
-import FlightFilters from "../components/FlightFilters";
-import FlightResults from "../components/FlightResults";
+import FlightFilters from "../../components/FlightFilters";
+import FlightResults from "../../components/FlightResults";
 import { format, addDays } from "date-fns";
 import type { Flight } from "@/types/flight";
 import { flightService } from "@/services/flightService";
 
-export default function FlightSearchPage() {
+export default function FlightSearchClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flights, setFlights] = useState<Flight[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   // Search parameters
-  const [selectedTripType, setSelectedTripType] = useState(
-    searchParams.get("tripType") || "one-way"
-  );
-  
-  const [selectedFrom, setSelectedFrom] = useState(
-    searchParams.get("from") || ""
-  );
-  const [selectedTo, setSelectedTo] = useState(
-    searchParams.get("to") || ""
-  );
-  const [departureDate, setDepartureDate] = useState<Date>(
-    searchParams.get("departureDate")
-      ? new Date(searchParams.get("departureDate")!)
-      : new Date()
-  );
-  const [returnDate, setReturnDate] = useState<Date | undefined>(
-    searchParams.get("returnDate")
-      ? new Date(searchParams.get("returnDate")!)
-      : undefined
-  );
+  const [selectedTripType, setSelectedTripType] = useState("one-way");
+  const [selectedFrom, setSelectedFrom] = useState("");
+  const [selectedTo, setSelectedTo] = useState("");
+  const [departureDate, setDepartureDate] = useState<Date>(new Date());
+  const [returnDate, setReturnDate] = useState<Date | undefined>(undefined);
   const [passengers, setPassengers] = useState({
-    adults: Number(searchParams.get("adults")) || 1,
-    children: Number(searchParams.get("children")) || 0,
-    infants: Number(searchParams.get("infants")) || 0,
+    adults: 1,
+    children: 0,
+    infants: 0,
   });
-  const [travelClass, setTravelClass] = useState(() => {
-    const classParam = searchParams.get("class");
-    // Handle cases where class might be "Economy/Premium Economy"
-    return classParam?.split('/')[0] || "Economy";
-  });
+  const [travelClass, setTravelClass] = useState("Economy");
+
+  // Initialize state from URL parameters
+  useEffect(() => {
+    setSelectedTripType(searchParams.get("tripType") || "one-way");
+    setSelectedFrom(searchParams.get("from") || "");
+    setSelectedTo(searchParams.get("to") || "");
+    setDepartureDate(
+      searchParams.get("departureDate")
+        ? new Date(searchParams.get("departureDate")!)
+        : new Date()
+    );
+    setReturnDate(
+      searchParams.get("returnDate")
+        ? new Date(searchParams.get("returnDate")!)
+        : undefined
+    );
+    setPassengers({
+      adults: Number(searchParams.get("adults")) || 1,
+      children: Number(searchParams.get("children")) || 0,
+      infants: Number(searchParams.get("infants")) || 0,
+    });
+    setTravelClass(searchParams.get("class")?.split('/')[0] || "Economy");
+    setIsInitialized(true);
+  }, [searchParams]);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -70,7 +74,7 @@ export default function FlightSearchPage() {
   // Search for flights when URL parameters change
   useEffect(() => {
     const searchFlights = async () => {
-      if (!selectedFrom || !selectedTo || !departureDate) return;
+      if (!selectedFrom || !selectedTo || !departureDate || !isInitialized) return;
 
       try {
         setLoading(true);
@@ -100,7 +104,6 @@ export default function FlightSearchPage() {
         if (results?.Response?.Results?.[0]) {
           setFlights(results.Response.Results[0]);
 
-          // Update price range based on actual prices
           const prices = results.Response.Results[0].map((f: Flight) => f.Fare.PublishedFare);
           setFilters(prev => ({
             ...prev,
@@ -118,7 +121,7 @@ export default function FlightSearchPage() {
     };
 
     searchFlights();
-  }, [selectedFrom, selectedTo, departureDate, passengers, selectedTripType]);
+  }, [selectedFrom, selectedTo, departureDate, passengers, selectedTripType, isInitialized]);
 
   // Generate dates array for flexible dates display
   const dates = Array.from({ length: 7 }, (_, i) => {
@@ -133,12 +136,22 @@ export default function FlightSearchPage() {
   });
 
   const handleBookFlight = (flight: Flight) => {
-    // Store selected flight in localStorage
-    localStorage.setItem("selectedFlight", JSON.stringify(flight));
-    
-    // Navigate to booking page
-    router.push(`/flight-booking?from=${selectedFrom}&to=${selectedTo}&date=${format(departureDate, "yyyy-MM-dd")}`);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("selectedFlight", JSON.stringify(flight));
+      router.push(`/flight-booking?from=${selectedFrom}&to=${selectedTo}&date=${format(departureDate, "yyyy-MM-dd")}`);
+    }
   };
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50">
