@@ -1,5 +1,5 @@
 // services/flightService.ts
-const BASE_URL = '/api';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export interface Airport {
     _id: string;
@@ -34,14 +34,7 @@ export interface FlightRuleParams {
     resultIndex: string;
 }
 
-interface FlightResultsProps {
-    selectedFrom: string;
-    selectedTo: string;
-    dates: Array<{ date: string; price: string; active: boolean }>;
-    filters: FlightFilters;
-    setFilters: (filters: FlightFilters) => void;
-    onErrorChange?: (error: string | null) => void;
-  }
+
 
 export interface PassengerFare {
     Currency: string;
